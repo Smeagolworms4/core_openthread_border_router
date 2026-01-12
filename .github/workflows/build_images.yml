@@ -80,21 +80,30 @@ jobs:
             OTBR_TAG=${{ steps.meta.outputs.otbr_tag }}
             ARCH=${{ matrix.arch_arg }}
 
-      # Crée un manifest multi-arch "version" + "latest"
       - name: Create and push manifest (multi-arch)
         if: github.event_name != 'pull_request'
         run: |
           repo="${{ steps.meta.outputs.repo }}"
           version="${{ steps.meta.outputs.version }}"
 
-          # manifest version
+          # Vérifie que les 2 images existent
+          if ! docker buildx imagetools inspect "${repo}:${version}-amd64" >/dev/null 2>&1; then
+            echo "Missing ${repo}:${version}-amd64"
+            exit 1
+          fi
+
+          if ! docker buildx imagetools inspect "${repo}:${version}-aarch64" >/dev/null 2>&1; then
+            echo "Missing ${repo}:${version}-aarch64 (skip manifest)"
+            exit 0
+          fi
+
           docker buildx imagetools create \
             -t "${repo}:${version}" \
             "${repo}:${version}-amd64" \
             "${repo}:${version}-aarch64"
 
-          # manifest latest (toujours, puisque tu builds master et tags)
           docker buildx imagetools create \
             -t "${repo}:latest" \
             "${repo}:${version}-amd64" \
             "${repo}:${version}-aarch64"
+
