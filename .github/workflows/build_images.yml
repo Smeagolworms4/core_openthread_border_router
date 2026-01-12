@@ -1,0 +1,96 @@
+name: build images
+
+on:
+  push:
+    branches: [ "master" ]
+    tags: [ "*" ]
+  pull_request:
+
+env:
+  IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch_arg: amd64
+          - platform: linux/arm64
+            arch_arg: aarch64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Compute tags
+        id: meta
+        run: |
+          repo="${IMAGE_NAME,,}"
+
+          # tag docker = branch name ou tag git
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            version="${GITHUB_REF#refs/tags/}"
+          else
+            version="${GITHUB_REF#refs/heads/}"
+          fi
+
+          # tags: version + latest seulement sur master et sur tags
+          tags="${repo}:${version}"
+          if [[ "${GITHUB_REF}" == "refs/heads/master" || "${GITHUB_REF}" == refs/tags/* ]]; then
+            tags="${tags},${repo}:latest"
+          fi
+
+          echo "tags=${tags}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to DockerHub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # Build & push une image par arch (tag suffixé)
+      - name: Build and push per-arch
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.tags }}-${{ matrix.arch_arg }}
+          build-args: |
+            OTBR_TAG=${{ steps.meta.outputs.version }}
+            ARCH=${{ matrix.arch_arg }}
+
+      # Crée un manifest multi-arch "version" + "latest"
+      - name: Create and push manifest (multi-arch)
+        if: github.event_name != 'pull_request'
+        run: |
+          repo="${IMAGE_NAME,,}"
+          version="${{ steps.meta.outputs.version }}"
+
+          # manifest version
+          docker buildx imagetools create \
+            -t "${repo}:${version}" \
+            "${repo}:${version}-amd64" \
+            "${repo}:${version}-aarch64"
+
+          # manifest latest (uniquement master ou tag)
+          if [[ "${GITHUB_REF}" == "refs/heads/master" || "${GITHUB_REF}" == refs/tags/* ]]; then
+            docker buildx imagetools create \
+              -t "${repo}:latest" \
+              "${repo}:${version}-amd64" \
+              "${repo}:${version}-aarch64"
+          fi
