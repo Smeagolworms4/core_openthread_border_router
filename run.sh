@@ -1,13 +1,20 @@
 #!/bin/sh
-set -e
+set -eu
 
-# 1) Créer un vrai TTY (PTY) dans le container
-socat pty,raw,echo=0,link=/dev/ttyFake >/tmp/socat.log 2>&1 &
+OPT="/data/options.json"
+TTY="/tmp/ttyOTBRNET"
+
+NET="$(jq -r '.network_device' "$OPT")"
+HOST="${NET%:*}"
+PORT="${NET#*:}"
+
+rm -f "$TTY"
+socat -d -d pty,raw,echo=0,link="$TTY" tcp:"$HOST":"$PORT" >/tmp/socat.log 2>&1 &
 sleep 1
 
-# 2) Injecter device dans la config OTBR
-jq '. + {device: "/dev/ttyFake"}' /data/options.json > /tmp/options.json
-mv /tmp/options.json /data/options.json
+tmp="$(mktemp)"
+jq --arg dev "$TTY" '. + {device: $dev}' "$OPT" > "$tmp"
+mv "$tmp" "$OPT"
 
-# 3) Lancer l'addon OTBR original
 exec /init
+
