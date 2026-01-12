@@ -31,6 +31,7 @@ jobs:
           platforms: all
 
       - name: Set up Docker Buildx
+        id: buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Compute tags
@@ -38,16 +39,12 @@ jobs:
         run: |
           repo="${IMAGE_NAME,,}"
 
-          # docker tag = branch name ou tag git
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             version="${GITHUB_REF#refs/tags/}"
           else
             version="${GITHUB_REF#refs/heads/}"
           fi
 
-          # Règle demandée:
-          # - si version == master => OTBR_TAG=latest
-          # - sinon OTBR_TAG=version
           if [[ "${version}" == "master" ]]; then
             otbr_tag="latest"
           else
@@ -65,11 +62,12 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Build & push une image par arch (tag suffixé)
+      # Build & push une image par arch
       - name: Build and push per-arch
         if: github.event_name != 'pull_request'
         uses: docker/build-push-action@v6
         with:
+          builder: ${{ steps.buildx.outputs.name }}
           context: .
           file: ./Dockerfile
           platforms: ${{ matrix.platform }}
@@ -86,17 +84,6 @@ jobs:
           repo="${{ steps.meta.outputs.repo }}"
           version="${{ steps.meta.outputs.version }}"
 
-          # Vérifie que les 2 images existent
-          if ! docker buildx imagetools inspect "${repo}:${version}-amd64" >/dev/null 2>&1; then
-            echo "Missing ${repo}:${version}-amd64"
-            exit 1
-          fi
-
-          if ! docker buildx imagetools inspect "${repo}:${version}-aarch64" >/dev/null 2>&1; then
-            echo "Missing ${repo}:${version}-aarch64 (skip manifest)"
-            exit 0
-          fi
-
           docker buildx imagetools create \
             -t "${repo}:${version}" \
             "${repo}:${version}-amd64" \
@@ -106,4 +93,3 @@ jobs:
             -t "${repo}:latest" \
             "${repo}:${version}-amd64" \
             "${repo}:${version}-aarch64"
-
