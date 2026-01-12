@@ -1,6 +1,6 @@
-ARG OTBR_TAG=stable
+ARG OTBR_TAG=2.15.3
 ARG ARCH=amd64
-FROM ghcr.io/home-assistant/${ARCH}-addon-openthread-border-router:${OTBR_TAG}
+FROM homeassistant/${ARCH}-addon-otbr:${OTBR_TAG}
 
 RUN apk add --no-cache socat jq
 COPY run.sh /run.sh
