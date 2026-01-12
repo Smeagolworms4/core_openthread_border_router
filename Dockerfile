@@ -1,4 +1,4 @@
-ARG OTBR_TAG=2.15.3
+ARG OTBR_TAG=latest
 ARG ARCH=amd64
 FROM homeassistant/${ARCH}-addon-otbr:${OTBR_TAG}
 
