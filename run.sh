@@ -13,6 +13,15 @@ fi
 HOST="${NET%:*}"
 PORT="${NET#*:}"
 
+if [ -f /usr/local/bin/migrate_otbr_settings.py ]; then
+  cat > /usr/local/bin/migrate_otbr_settings.py <<'EOF'
+#!/usr/bin/env sh
+echo "[BYPS] migrate_otbr_settings.py bypassed (network_device mode)"
+exit 0
+EOF
+  chmod +x /usr/local/bin/migrate_otbr_settings.py
+fi
+
 rm -f "$TTY"
 socat -d -d pty,raw,echo=0,link="$TTY" tcp:"$HOST":"$PORT" >/tmp/socat.log 2>&1 &
 sleep 1
