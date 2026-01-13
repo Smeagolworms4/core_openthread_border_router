@@ -22,7 +22,8 @@ docker run -ti smeagolworms4/core_openthread_border_router
 
 ## Docker hub
 
-https://hub.docker.com/r/smeagolworms4/core_openthread_border_router
+https://hub.docker.com/r/smeagolworms4/core_openthread_border_router_amd64
+https://hub.docker.com/r/smeagolworms4/core_openthread_border_router_aarch64
 
 ## Github
 
