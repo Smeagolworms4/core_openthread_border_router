@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         include:
           - platform: linux/amd64
@@ -68,8 +69,6 @@ jobs:
           load: true
           tags: |
             ${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.version }}-${{ matrix.arch_arg }}
-            ${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.version }}
-            ${{ steps.meta.outputs.repo }}:latest
           build-args: |
             OTBR_TAG=${{ steps.meta.outputs.otbr_tag }}
             ARCH=${{ matrix.arch_arg }}
@@ -87,5 +86,3 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           docker push "${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.version }}-${{ matrix.arch_arg }}"
-          docker push "${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.version }}"
-          docker push "${{ steps.meta.outputs.repo }}:latest"
