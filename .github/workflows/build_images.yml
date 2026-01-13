@@ -68,7 +68,7 @@ jobs:
           push: false
           load: true
           tags: |
-            ${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.version }}-${{ matrix.arch_arg }}
+            ${{ steps.meta.outputs.repo }}_${{ matrix.arch_arg }}:${{ steps.meta.outputs.version }}
           build-args: |
             OTBR_TAG=${{ steps.meta.outputs.otbr_tag }}
             ARCH=${{ matrix.arch_arg }}
@@ -85,4 +85,4 @@ jobs:
       - name: Push per-arch (after login)
         if: github.event_name != 'pull_request'
         run: |
-          docker push "${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.version }}-${{ matrix.arch_arg }}"
+          docker push "${{ steps.meta.outputs.repo }}_${{ matrix.arch_arg }}:${{ steps.meta.outputs.version }}"
