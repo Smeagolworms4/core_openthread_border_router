@@ -31,6 +31,7 @@ jobs:
           platforms: all
 
       - name: Set up Docker Buildx
+        id: buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Compute tags
@@ -38,16 +39,12 @@ jobs:
         run: |
           repo="${IMAGE_NAME,,}"
 
-          # docker tag = branch name ou tag git
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             version="${GITHUB_REF#refs/tags/}"
           else
             version="${GITHUB_REF#refs/heads/}"
           fi
 
-          # Règle demandée:
-          # - si version == master => OTBR_TAG=latest
-          # - sinon OTBR_TAG=version
           if [[ "${version}" == "master" ]]; then
             otbr_tag="latest"
           else
@@ -58,11 +55,24 @@ jobs:
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "otbr_tag=${otbr_tag}" >> "$GITHUB_OUTPUT"
 
-      - name: Pre-pull base image anonymously
-        run: |
-          docker pull "homeassistant/${{ matrix.arch_arg }}-addon-otbr:${{ steps.meta.outputs.otbr_tag }}" || true
+      # BUILD uniquement (pas de push, pas de login)
+      - name: Build per-arch (no login, no push)
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          context: .
+          file: ./Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: false
+          load: true
+          tags: |
+            ${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.version }}-${{ matrix.arch_arg }}
+          build-args: |
+            OTBR_TAG=${{ steps.meta.outputs.otbr_tag }}
+            ARCH=${{ matrix.arch_arg }}
 
-      
+      # LOGIN après le build
       - name: Login to DockerHub
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -70,37 +80,17 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Build & push une image par arch (tag suffixé)
-      - name: Build and push per-arch
+      # PUSH après login
+      - name: Push per-arch (after login)
         if: github.event_name != 'pull_request'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: ${{ matrix.platform }}
-          push: true
-          tags: |
-            ${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.version }}-${{ matrix.arch_arg }}
-          build-args: |
-            OTBR_TAG=${{ steps.meta.outputs.otbr_tag }}
-            ARCH=${{ matrix.arch_arg }}
+        run: |
+          docker push "${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.version }}-${{ matrix.arch_arg }}"
 
       - name: Create and push manifest (multi-arch)
         if: github.event_name != 'pull_request'
         run: |
           repo="${{ steps.meta.outputs.repo }}"
           version="${{ steps.meta.outputs.version }}"
-
-          # Vérifie que les 2 images existent
-          if ! docker buildx imagetools inspect "${repo}:${version}-amd64" >/dev/null 2>&1; then
-            echo "Missing ${repo}:${version}-amd64"
-            exit 1
-          fi
-
-          if ! docker buildx imagetools inspect "${repo}:${version}-aarch64" >/dev/null 2>&1; then
-            echo "Missing ${repo}:${version}-aarch64 (skip manifest)"
-            exit 0
-          fi
 
           docker buildx imagetools create \
             -t "${repo}:${version}" \
@@ -111,4 +101,3 @@ jobs:
             -t "${repo}:latest" \
             "${repo}:${version}-amd64" \
             "${repo}:${version}-aarch64"
-
