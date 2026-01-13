@@ -7,7 +7,13 @@ RUN apt-get update \
       socat \
       jq \
  && rm -rf /var/lib/apt/lists/*
+
+
+COPY migrate_otbr_settings.py /usr/local/bin/migrate_otbr_settings.py
+RUN chmod +x /usr/local/bin/migrate_otbr_settings.py
+
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
+
 
 ENTRYPOINT ["/run.sh"]
