@@ -68,6 +68,8 @@ jobs:
           load: true
           tags: |
             ${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.version }}-${{ matrix.arch_arg }}
+            ${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.version }}
+            ${{ steps.meta.outputs.repo }}:latest
           build-args: |
             OTBR_TAG=${{ steps.meta.outputs.otbr_tag }}
             ARCH=${{ matrix.arch_arg }}
@@ -85,19 +87,5 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           docker push "${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.version }}-${{ matrix.arch_arg }}"
-
-      - name: Create and push manifest (multi-arch)
-        if: github.event_name != 'pull_request'
-        run: |
-          repo="${{ steps.meta.outputs.repo }}"
-          version="${{ steps.meta.outputs.version }}"
-
-          docker buildx imagetools create \
-            -t "${repo}:${version}" \
-            "${repo}:${version}-amd64" \
-            "${repo}:${version}-aarch64"
-
-          docker buildx imagetools create \
-            -t "${repo}:latest" \
-            "${repo}:${version}-amd64" \
-            "${repo}:${version}-aarch64"
+          docker push "${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.version }}"
+          docker push "${{ steps.meta.outputs.repo }}:latest"
