@@ -1,0 +1,88 @@
+name: auto release
+
+# Vérifie la version upstream du Home Assistant OpenThread Border Router addon
+# et crée automatiquement les tags + releases manquants (toutes les 4h).
+# Le tag est poussé avec un PAT (RELEASE_PAT) afin de déclencher build_images.yml
+# (un tag poussé par le GITHUB_TOKEN par défaut ne déclenche aucun workflow).
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  auto-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.RELEASE_PAT }}
+          fetch-depth: 0
+
+      - name: Check upstream and create missing releases
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          UPSTREAM_BASE: https://raw.githubusercontent.com/home-assistant/addons/master/openthread_border_router
+        run: |
+          set -euo pipefail
+
+          # Récupère le CHANGELOG upstream (il liste toutes les versions dans l'ordre)
+          curl -fsSL "${UPSTREAM_BASE}/CHANGELOG.md" -o upstream_changelog.md
+
+          # Liste ordonnée des versions présentes dans le changelog upstream
+          UPSTREAM_VERSIONS=$(grep -oP '^##\s+\K[0-9]+\.[0-9]+\.[0-9]+' upstream_changelog.md)
+          echo "Versions upstream:"
+          echo "$UPSTREAM_VERSIONS"
+
+          # Dernière version déjà taguée dans le fork (0.0.0 si aucune)
+          git fetch --tags --quiet
+          CURRENT=$(git tag -l '[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n1)
+          CURRENT=${CURRENT:-0.0.0}
+          echo "Version courante du fork: $CURRENT"
+
+          # Versions upstream strictement supérieures à la courante (filtrage via sort -V)
+          NEW_VERSIONS=$(for v in $UPSTREAM_VERSIONS; do
+            top=$(printf '%s\n%s\n' "$CURRENT" "$v" | sort -V | tail -n1)
+            if [ "$v" = "$top" ] && [ "$v" != "$CURRENT" ]; then
+              echo "$v"
+            fi
+          done | sort -V)
+
+          if [ -z "$NEW_VERSIONS" ]; then
+            echo "Aucune nouvelle version. Rien à faire."
+            exit 0
+          fi
+
+          echo "Nouvelles versions à publier:"
+          echo "$NEW_VERSIONS"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          for v in $NEW_VERSIONS; do
+            if git rev-parse "$v" >/dev/null 2>&1; then
+              echo "Tag $v existe déjà, on saute."
+              continue
+            fi
+
+            # Extrait les notes de cette version depuis le changelog upstream
+            NOTES=$(awk -v ver="$v" '
+              $0 ~ "^##[ \t]+" ver "([ \t]|$)" {flag=1; next}
+              /^##[ \t]/ && flag {exit}
+              flag {print}
+            ' upstream_changelog.md | sed '/^[[:space:]]*$/d')
+            [ -z "$NOTES" ] && NOTES="- Bump to upstream version $v"
+
+            echo "=== Création tag + release $v ==="
+            git tag -a "$v" -m "Release $v
+
+$NOTES"
+            git push origin "$v"
+
+            printf '%s\n' "$NOTES" > notes.md
+            gh release create "$v" --title "$v" --notes-file notes.md
+          done
