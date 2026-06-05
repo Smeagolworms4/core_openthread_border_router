@@ -78,11 +78,8 @@ jobs:
             [ -z "$NOTES" ] && NOTES="- Bump to upstream version $v"
 
             echo "=== Création tag + release $v ==="
-            git tag -a "$v" -m "Release $v
-
-$NOTES"
-            git push origin "$v"
-
             printf '%s\n' "$NOTES" > notes.md
+            git tag -a "$v" -F <(printf 'Release %s\n\n%s\n' "$v" "$NOTES")
+            git push origin "$v"
             gh release create "$v" --title "$v" --notes-file notes.md
           done
