@@ -69,6 +69,28 @@ jobs:
               continue
             fi
 
+            # L'image de base officielle homeassistant/<arch>-addon-otbr:<v>
+            # (Docker Hub) est publiée avec un délai après l'entrée au changelog.
+            # On ne crée le tag que si les deux arches existent, sinon le build
+            # échoue. Réessai au prochain cron.
+            img_ready=true
+            for arch in amd64 aarch64; do
+              repo="homeassistant/${arch}-addon-otbr"
+              dh_token=$(curl -fsSL "https://auth.docker.io/token?service=registry.docker.io&scope=repository:${repo}:pull" | jq -r .token)
+              code=$(curl -s -o /dev/null -w '%{http_code}' \
+                -H "Authorization: Bearer $dh_token" \
+                -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
+                "https://registry-1.docker.io/v2/${repo}/manifests/$v")
+              if [ "$code" != "200" ]; then
+                echo "Image ${repo}:$v pas encore disponible (HTTP $code)."
+                img_ready=false
+              fi
+            done
+            if [ "$img_ready" != "true" ]; then
+              echo "Report de $v au prochain cron."
+              continue
+            fi
+
             # Extrait les notes de cette version depuis le changelog upstream
             NOTES=$(awk -v ver="$v" '
               $0 ~ "^##[ \t]+" ver "([ \t]|$)" {flag=1; next}
