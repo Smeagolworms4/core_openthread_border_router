@@ -46,10 +46,12 @@ jobs:
             version="${GITHUB_REF#refs/heads/}"
           fi
 
+          # Un tag de correctif du fork ("3.1.0-2") se construit sur l'image
+          # upstream de base correspondante ("3.1.0").
           if [[ "${version}" == "master" ]]; then
             otbr_tag="latest"
           else
-            otbr_tag="${version}"
+            otbr_tag="${version%%-*}"
           fi
 
           echo "repo=${repo}" >> "$GITHUB_OUTPUT"
