@@ -33,3 +33,25 @@ https://github.com/Smeagolworms4/core_openthread_border_router
 ## Home Assistant Addon
 
 https://github.com/GollumDom/addon-repository
+
+## Troubleshooting
+
+Both failure modes below end the same way in the log — `Init() at
+spinel_driver.cpp:87: Failure`, then the container stops — but they are not the
+same problem.
+
+**`tiocmbic: Inappropriate ioctl for device`** — fixed in 3.1.0.2. Upstream adds
+`uart-init-deassert` to the radio URL when `flow_control` is off, and the
+resulting `ioctl(TIOCMBIC)` is not implemented by a socat PTY, so port setup
+gives up before `tcsetattr`. This image now drops the UART flow-control
+parameters whenever a `network_device` is configured.
+
+**No `tiocmbic`, still line 87** — line 87 is `CheckSpinelVersion()`: the RCP
+never answered. socat is connected (otherwise the error would be
+`hdlc_interface.cpp:154: No such file or directory`), so the radio itself is
+frozen. Over TCP there are no DTR/RTS lines to toggle its reset pin, so the
+adapter must do it: on an SLZB-06, *Settings and Tools -> General settings ->
+Zigbee restart*, then start the add-on again.
+
+See `DOCS.md` in the add-on repository for a standalone script that queries the
+RCP version directly over TCP to tell the two apart.
