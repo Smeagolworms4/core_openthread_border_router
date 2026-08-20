@@ -46,12 +46,15 @@ jobs:
             version="${GITHUB_REF#refs/heads/}"
           fi
 
-          # Un tag de correctif du fork ("3.1.0-2") se construit sur l'image
+          # Un tag de correctif du fork ("3.1.0.2") se construit sur l'image
           # upstream de base correspondante ("3.1.0").
+          # Surtout pas de suffixe "-N": AwesomeVersion (Supervisor) le lit
+          # comme une pre-release, donc plus ANCIENNE que la version de base,
+          # et Home Assistant ne propose jamais la mise a jour.
           if [[ "${version}" == "master" ]]; then
             otbr_tag="latest"
           else
-            otbr_tag="${version%%-*}"
+            otbr_tag="$(echo "${version}" | cut -d. -f1-3)"
           fi
 
           echo "repo=${repo}" >> "$GITHUB_OUTPUT"
