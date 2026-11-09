@@ -1,6 +1,8 @@
-ARG OTBR_TAG=latest
-ARG ARCH=amd64
-FROM homeassistant/${ARCH}-addon-otbr:${OTBR_TAG}
+# Image upstream complète, calculée par build_images.yml :
+#  - >= 3.4.0 : ghcr.io/home-assistant/app-openthread-border-router:<v> (multi-arch)
+#  - <  3.4.0 : homeassistant/<arch>-addon-otbr:<v> (Docker Hub, plus alimenté)
+ARG BASE_IMAGE=ghcr.io/home-assistant/app-openthread-border-router:stable
+FROM ${BASE_IMAGE}
 
 # L'addon upstream gère nativement l'option `network_device` (service
 # socat-otbr-tcp qui expose le RCP TCP sur /tmp/ttyOTBR). On se contente donc :

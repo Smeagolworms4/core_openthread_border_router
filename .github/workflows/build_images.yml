@@ -52,14 +52,24 @@ jobs:
           # comme une pre-release, donc plus ANCIENNE que la version de base,
           # et Home Assistant ne propose jamais la mise a jour.
           if [[ "${version}" == "master" ]]; then
-            otbr_tag="latest"
+            otbr_tag="stable"
           else
             otbr_tag="$(echo "${version}" | cut -d. -f1-3)"
           fi
 
+          # Depuis 3.4.0, upstream publie une image multi-arch sur GHCR et
+          # n'alimente plus homeassistant/<arch>-addon-otbr sur Docker Hub.
+          ghcr="ghcr.io/home-assistant/app-openthread-border-router"
+          if [[ "${otbr_tag}" == "stable" ]] \
+             || [[ "$(printf '%s\n%s\n' 3.4.0 "${otbr_tag}" | sort -V | head -n1)" == "3.4.0" ]]; then
+            base_image="${ghcr}:${otbr_tag}"
+          else
+            base_image="homeassistant/${{ matrix.arch_arg }}-addon-otbr:${otbr_tag}"
+          fi
+
           echo "repo=${repo}" >> "$GITHUB_OUTPUT"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "otbr_tag=${otbr_tag}" >> "$GITHUB_OUTPUT"
+          echo "base_image=${base_image}" >> "$GITHUB_OUTPUT"
 
       # BUILD uniquement (pas de push, pas de login)
       - name: Build per-arch (no login, no push)
@@ -75,8 +85,7 @@ jobs:
           tags: |
             ${{ steps.meta.outputs.repo }}_${{ matrix.arch_arg }}:${{ steps.meta.outputs.version }}
           build-args: |
-            OTBR_TAG=${{ steps.meta.outputs.otbr_tag }}
-            ARCH=${{ matrix.arch_arg }}
+            BASE_IMAGE=${{ steps.meta.outputs.base_image }}
 
       # LOGIN après le build
       - name: Login to DockerHub
